@@ -1,0 +1,74 @@
+name: RevoPush OTA Android
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'android/version.properties'
+      - 'android/**'
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: ${{ secrets.APP_NAME }}
+      REVOPUSH_ACCESS_KEY: ${{ secrets.REVOPUSH_ACCESS_KEY }}
+      BRANCH_NAME: ${{ github.ref_name }}
+
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Validate required secrets
+        run: |
+          if [ -z "${{ secrets.APP_NAME }}" ]; then
+            echo "Error: APP_NAME secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.REVOPUSH_ACCESS_KEY }}" ]; then
+            echo "Error: REVOPUSH_ACCESS_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+
+      - name: ⚙️ Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: 🚀 Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: 🧰 Setup RevoPush CLI
+        uses: revopush/revopush-github-action@v1.0.0
+        with:
+          version: 'latest'
+          accessKey: ${{ secrets.REVOPUSH_ACCESS_KEY }}
+
+      - name: 📦 Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: 🔍 Determine environment based on branch
+        id: envselect
+        run: |
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "environment=Production" >> $GITHUB_ENV
+            echo "🌍 Environment set to Production"
+          else
+            echo "environment=Staging" >> $GITHUB_ENV
+            echo "🌍 Environment set to Staging"
+          fi
+
+      - name: 🚀 Release Android OTA via RevoPush
+        run: revopush release-react $APP_NAME android -d ${{ env.environment }}
