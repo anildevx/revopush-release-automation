@@ -72,6 +72,17 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def versionPropsFile = file('../version.properties')
+def Properties versionProps = new Properties()
+def versionCodeValue = 1
+def versionNameValue = "1.0"
+
+if (versionPropsFile.canRead()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+    versionCodeValue = versionProps['VERSION_CODE'].toInteger()
+    versionNameValue = versionProps['VERSION_NAME']
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -82,8 +93,8 @@ android {
         applicationId "com.revosync"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode versionCodeValue
+        versionName versionNameValue
     }
     signingConfigs {
         debug {
