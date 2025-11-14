@@ -1,0 +1,87 @@
+name: 📦 Versioning
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - 'android/version.properties'
+
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: 🔍 Check if version file was just updated
+        id: check_version
+        run: |
+          LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$LAST_COMMIT_MSG" == *"bump version"* ]] || [[ "$LAST_COMMIT_MSG" == *"bump build"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Version was just bumped, skipping..."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: ⚙️ Setup Node
+        if: steps.check_version.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 🚀 Setup Bun
+        if: steps.check_version.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v1
+
+      - name: 🔍 Determine environment
+        if: steps.check_version.outputs.skip != 'true'
+        id: env
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "env=production" >> $GITHUB_ENV
+            echo "Environment: Production"
+          else
+            echo "env=staging" >> $GITHUB_ENV
+            echo "Environment: Staging"
+          fi
+
+      - name: 🔢 Bump Version or Build Number
+        if: steps.check_version.outputs.skip != 'true'
+        run: |
+          if [ "${{ env.env }}" = "production" ]; then
+            echo "Bumping production version..."
+            bash scripts/bump_version.sh
+          else
+            echo "Incrementing staging build number..."
+            bash scripts/bump_build_number.sh
+          fi
+
+      - name: 📦 Commit updated version files
+        if: steps.check_version.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add android/version.properties
+          if git diff --staged --quiet; then
+            echo "No version changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: bump version/build number [skip ci]"
+          git push
+
+      - name: 📢 Notify on Success
+        if: success() && steps.check_version.outputs.skip != 'true'
+        run: |
+          VERSION=$(grep VERSION_NAME android/version.properties | cut -d'=' -f2)
+          BUILD=$(grep VERSION_CODE android/version.properties | cut -d'=' -f2)
+          BRANCH="${GITHUB_REF_NAME}"
+          curl -X POST -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ Version Updated!\n📱 Version: $VERSION\n🔢 Build: $BUILD\n🌿 Branch: $BRANCH\"}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }} || echo "Discord notification failed"
