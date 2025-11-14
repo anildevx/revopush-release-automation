@@ -72,3 +72,14 @@ jobs:
 
       - name: 🚀 Release Android OTA via RevoPush
         run: revopush release-react $APP_NAME android -d ${{ env.environment }}
+
+      - name: 📢 Send Discord Notification
+        if: success()
+        run: |
+          ENVIRONMENT=${{ env.environment }}
+          BRANCH=${{ env.BRANCH_NAME }}
+          VERSION=$(grep VERSION_NAME android/version.properties | cut -d'=' -f2)
+          BUILD=$(grep VERSION_CODE android/version.properties | cut -d'=' -f2)
+          curl -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ RevoPush Android OTA Release Successful!\n📱 App: $APP_NAME\n🌍 Environment: $ENVIRONMENT\n🌿 Branch: $BRANCH\n📦 Version: $VERSION ($BUILD)\"}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }} || echo "Discord notification failed"
