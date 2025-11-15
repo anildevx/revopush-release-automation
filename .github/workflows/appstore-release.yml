@@ -1,0 +1,80 @@
+name: 🚀 TestFlight Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'android/version.properties'
+      - 'ios/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: macos-latest
+
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+      APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+
+    steps:
+      - name: 🧩 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Validate required secrets
+        run: |
+          if [ -z "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" ]; then
+            echo "Error: APP_STORE_CONNECT_API_KEY_ID secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}" ]; then
+            echo "Error: APP_STORE_CONNECT_API_ISSUER_ID secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}" ]; then
+            echo "Error: APP_STORE_CONNECT_API_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+
+      - name: ⚙️ Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 📦 Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: 💎 Install Fastlane
+        run: sudo gem install fastlane -NV
+
+      - name: 🏗️ Build iOS App
+        run: |
+          cd ios
+          fastlane build
+
+      - name: 🚀 Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          cd ios
+          if [ "$BRANCH_NAME" = "main" ]; then
+            fastlane upload_testflight track:production
+          else
+            fastlane upload_testflight track:beta
+          fi
+
+      - name: 📢 Notify on Success
+        if: success()
+        run: |
+          TRACK=$([ "$BRANCH_NAME" = "main" ] && echo "Production" || echo "Beta")
+          VERSION=$(grep VERSION_NAME android/version.properties | cut -d'=' -f2)
+          BUILD=$(grep VERSION_CODE android/version.properties | cut -d'=' -f2)
+          curl -X POST -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ TestFlight Upload Successful!\n📱 iOS App\n🌿 Branch: $BRANCH_NAME\n🚀 Track: $TRACK\n📦 Version: $VERSION ($BUILD)\"}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }} || echo "Discord notification failed"
