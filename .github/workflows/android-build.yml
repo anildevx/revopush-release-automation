@@ -10,6 +10,7 @@ on:
       - 'android/**'
       - 'src/**'
       - 'package.json'
+      - 'App.tsx'
   workflow_dispatch:
 
 jobs:
