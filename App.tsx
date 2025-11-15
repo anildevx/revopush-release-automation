@@ -108,7 +108,7 @@ function AppView() {
 
       <View style={{marginTop: 20, flex: 1, width: '80%', }}>
         <Text style={{ marginBottom: 10, textAlign: 'center', color: '#666' }}>
-          App Sync with RevoPush!
+          App Sync with RevoPush Test!
         </Text>
       </View>
     </View>
