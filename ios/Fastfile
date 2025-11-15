@@ -1,0 +1,45 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build iOS app"
+  lane :build do
+    setup_ci if ENV['CI']
+
+    # Read version from Android properties file
+    version_file = "../android/version.properties"
+    if File.exist?(version_file)
+      version_data = File.read(version_file)
+      version_name = version_data.match(/VERSION_NAME=(.+)/)[1]
+      version_code = version_data.match(/VERSION_CODE=(.+)/)[1]
+
+      increment_version_number(
+        version_number: version_name
+      )
+      increment_build_number(
+        build_number: version_code
+      )
+    end
+
+    build_app(
+      scheme: "codesync",
+      export_method: "app-store",
+      configuration: "Release"
+    )
+  end
+
+  desc "Upload to TestFlight"
+  lane :upload_testflight do |options|
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_ID'],
+      issuer_id: ENV['APP_STORE_CONNECT_API_ISSUER_ID'],
+      key_content: ENV['APP_STORE_CONNECT_API_PRIVATE_KEY'],
+      is_key_content_base64: true
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: options[:track] == "production"
+    )
+  end
+end
