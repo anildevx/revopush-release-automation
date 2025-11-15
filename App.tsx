@@ -108,12 +108,7 @@ function AppView() {
 
       <View style={{marginTop: 20, flex: 1, width: '80%', }}>
         <Text style={{ marginBottom: 10, textAlign: 'center', color: '#666' }}>
-          Sync with CodePush!
-        </Text>
-      </View>
-      <View style={{marginTop: 20, flex: 1, width: '80%', }}>
-        <Text style={{ marginBottom: 10, textAlign: 'center', color: '#666' }}>
-          This is a sample app to demonstrate how to use RevoPush with CodePush.
+          Sync with RevoPush!
         </Text>
       </View>
     </View>
