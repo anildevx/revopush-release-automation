@@ -1,0 +1,85 @@
+name: RevoPush OTA iOS
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'android/version.properties'
+      - 'ios/**'
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+
+jobs:
+  release-ios:
+    runs-on: macos-latest
+
+    env:
+      APP_NAME: ${{ secrets.APP_NAME }}
+      REVOPUSH_ACCESS_KEY: ${{ secrets.REVOPUSH_ACCESS_KEY }}
+      BRANCH_NAME: ${{ github.ref_name }}
+
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Validate required secrets
+        run: |
+          if [ -z "${{ secrets.APP_NAME }}" ]; then
+            echo "Error: APP_NAME secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.REVOPUSH_ACCESS_KEY }}" ]; then
+            echo "Error: REVOPUSH_ACCESS_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+
+      - name: ⚙️ Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: 🚀 Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: 🧰 Setup RevoPush CLI
+        uses: revopush/revopush-github-action@v1.0.0
+        with:
+          version: 'latest'
+          accessKey: ${{ secrets.REVOPUSH_ACCESS_KEY }}
+
+      - name: 📦 Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: 🔍 Determine environment based on branch
+        id: envselect
+        run: |
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "environment=Production" >> $GITHUB_ENV
+            echo "🌍 Environment set to Production"
+          else
+            echo "environment=Staging" >> $GITHUB_ENV
+            echo "🌍 Environment set to Staging"
+          fi
+
+      - name: 🚀 Release iOS OTA via RevoPush
+        run: revopush release-react $APP_NAME ios -d ${{ env.environment }}
+
+      - name: 📢 Send Discord Notification
+        if: success()
+        run: |
+          ENVIRONMENT=${{ env.environment }}
+          BRANCH=${{ env.BRANCH_NAME }}
+          VERSION=$(grep VERSION_NAME android/version.properties | cut -d'=' -f2)
+          BUILD=$(grep VERSION_CODE android/version.properties | cut -d'=' -f2)
+          curl -H "Content-Type: application/json" \
+            -d "{\"content\": \"✅ RevoPush iOS OTA Release Successful!\n📱 App: $APP_NAME\n🌍 Environment: $ENVIRONMENT\n🌿 Branch: $BRANCH\n📦 Version: $VERSION ($BUILD)\"}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }} || echo "Discord notification failed"
