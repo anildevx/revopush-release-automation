@@ -70,7 +70,15 @@ jobs:
             echo "environment=Staging" >> $GITHUB_ENV
             echo "🌍 Environment set to Staging"
           fi
-
+          
+      - name: 📝 Prepare version for RevoPush
+        run: |
+          VERSION_NAME=$(grep VERSION_NAME android/version.properties | cut -d'=' -f2)
+          VERSION_CODE=$(grep VERSION_CODE android/version.properties | cut -d'=' -f2)
+          echo "versionNameValue=$VERSION_NAME" >> android/gradle.properties
+          echo "versionCodeValue=$VERSION_CODE" >> android/gradle.properties
+          echo "✅ Version configured: $VERSION_NAME ($VERSION_CODE)"
+          
       - name: 🚀 Release Android OTA via RevoPush
         run: revopush release-react $APP_NAME android -d ${{ env.environment }}
 
